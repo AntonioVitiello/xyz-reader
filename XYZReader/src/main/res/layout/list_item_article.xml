@@ -15,14 +15,15 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <com.example.xyzreader.ui.DynamicHeightNetworkImageView
+        <ImageView
             android:id="@+id/thumbnail"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="250dp"
             android:adjustViewBounds="true"
             android:background="@color/photo_placeholder"
             android:contentDescription="@string/badge"
-            android:scaleType="centerCrop" />
+            android:scaleType="centerCrop"
+            android:src="@drawable/photo_background_protection" />
 
         <TextView
             android:id="@+id/article_title"

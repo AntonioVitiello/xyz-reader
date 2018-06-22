@@ -15,24 +15,32 @@ import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.support.v7.widget.Toolbar;
 import android.text.Html;
+import android.text.Spanned;
 import android.text.format.DateUtils;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.view.animation.Interpolator;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.example.xyzreader.R;
 import com.example.xyzreader.data.ArticleLoader;
 import com.example.xyzreader.data.ItemsContract;
 import com.example.xyzreader.data.UpdaterService;
+import com.example.xyzreader.event.DetailEvent;
+import com.squareup.picasso.Callback;
+import com.squareup.picasso.Picasso;
+
+import org.greenrobot.eventbus.EventBus;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.GregorianCalendar;
+
+import timber.log.Timber;
 
 /**
  * An activity representing a list of Articles. This activity has different presentations for
@@ -42,7 +50,6 @@ import java.util.GregorianCalendar;
  */
 public class ArticleListActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<Cursor> {
 
-    private static final String TAG = ArticleListActivity.class.toString();
     private static final int ARTICLE_LOADER_ID = 11;
     private Toolbar mToolbar;
     private SwipeRefreshLayout mSwipeRefreshLayout;
@@ -62,6 +69,8 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
         mSwipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
 
         mRecyclerView = findViewById(R.id.recycler_view);
+        mRecyclerView.setHasFixedSize(true);
+
         getSupportLoaderManager().initLoader(ARTICLE_LOADER_ID, null, this);
 
     }
@@ -142,6 +151,14 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
                 Uri uri = ItemsContract.Items.buildItemUri(itemId);
                 Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                 startActivity(intent);
+
+                DetailEvent event = DetailEvent.newBuilder()
+                        .title(viewHolder.titleView.getText().toString())
+                        .subtitle((Spanned) viewHolder.subtitleView.getText())
+                        .imageurl(viewHolder.imageurl)
+                        .build();
+                EventBus.getDefault().postSticky(event);
+
             });
             return viewHolder;
         }
@@ -150,9 +167,8 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
             try {
                 String date = mCursor.getString(ArticleLoader.Query.PUBLISHED_DATE);
                 return dateFormat.parse(date);
-            } catch (ParseException ex) {
-                Log.e(TAG, ex.getMessage());
-                Log.i(TAG, "passing today's date");
+            } catch (ParseException exc) {
+                Timber.e(exc, "passing today's date");
                 return new Date();
             }
         }
@@ -177,10 +193,23 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
                                 + "<br/>" + " by "
                                 + mCursor.getString(ArticleLoader.Query.AUTHOR)));
             }
-            holder.thumbnailView.setImageUrl(
-                    mCursor.getString(ArticleLoader.Query.THUMB_URL),
-                    ImageLoaderHelper.getInstance(ArticleListActivity.this).getImageLoader());
-            holder.thumbnailView.setAspectRatio(mCursor.getFloat(ArticleLoader.Query.ASPECT_RATIO));
+
+            holder.imageurl = mCursor.getString(ArticleLoader.Query.THUMB_URL);
+            Picasso.get()
+                    .load(holder.imageurl)
+                    .placeholder(R.drawable.ic_placeholder)
+                    .error(R.drawable.ic_broken_image)
+                    .into(holder.thumbnailView, new Callback() {
+                        @Override
+                        public void onSuccess() {
+                            //do nothing
+                        }
+
+                        @Override
+                        public void onError(Exception exc) {
+                            Timber.e(exc, "While loading image: %s", holder.imageurl);
+                        }
+                    });
 
             setAnimation(holder.itemView, position);
         }
@@ -208,9 +237,10 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        public DynamicHeightNetworkImageView thumbnailView;
+        public ImageView thumbnailView;
         public TextView titleView;
         public TextView subtitleView;
+        public String imageurl;
 
         public ViewHolder(View view) {
             super(view);
