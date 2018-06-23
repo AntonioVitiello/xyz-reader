@@ -23,7 +23,8 @@
             android:background="@color/photo_placeholder"
             android:contentDescription="@string/badge"
             android:scaleType="centerCrop"
-            android:src="@drawable/photo_background_protection" />
+            android:src="@drawable/photo_background_protection"
+            android:transitionName="@string/image_transition_name"/>
 
         <TextView
             android:id="@+id/article_title"

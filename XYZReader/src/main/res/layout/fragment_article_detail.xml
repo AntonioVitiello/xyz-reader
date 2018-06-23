@@ -26,7 +26,8 @@
                     android:layout_height="@dimen/detail_photo_height"
                     android:adjustViewBounds="true"
                     android:contentDescription="@string/badge"
-                    android:scaleType="centerCrop" />
+                    android:scaleType="centerCrop"
+                    android:transitionName="@string/image_transition_name" />
 
                 <View
                     android:layout_width="match_parent"
@@ -113,6 +114,7 @@
                     android:contentDescription="@string/action_share"
                     android:src="@drawable/ic_share"
                     android:stateListAnimator="@animator/fab_state_list_anim"
+                    app:elevation="@dimen/fab_elevation"
                     app:layout_anchor="@id/meta_bar"
                     app:layout_anchorGravity="bottom|end" />
 

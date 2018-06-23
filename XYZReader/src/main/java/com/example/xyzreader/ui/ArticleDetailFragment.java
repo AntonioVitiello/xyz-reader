@@ -7,20 +7,17 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
+import android.support.transition.TransitionInflater;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.app.ShareCompat;
 import android.support.v4.content.Loader;
-import android.support.v7.graphics.Palette;
-import android.text.Html;
-import android.text.Spanned;
-import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,9 +32,7 @@ import com.example.xyzreader.event.DetailEvent;
 import com.example.xyzreader.handler.BodyBuilder;
 import com.example.xyzreader.handler.PaletteBuilder;
 import com.example.xyzreader.handler.SubtitleBuilder;
-import com.example.xyzreader.handler.Worker;
 import com.example.xyzreader.handler.WorkerHandler;
-import com.squareup.picasso.Callback;
 import com.squareup.picasso.Picasso;
 import com.squareup.picasso.Target;
 
@@ -53,7 +48,6 @@ import timber.log.Timber;
  * tablets) or a {@link ArticleDetailActivity} on handsets.
  */
 public class ArticleDetailFragment extends Fragment implements LoaderManager.LoaderCallbacks<Cursor> {
-    private static final String TAG = "ArticleDetailFragment";
 
     public static final String ARG_ITEM_ID = "item_id";
     private static final float PARALLAX_FACTOR = 1.25f;
@@ -81,6 +75,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
     private FloatingActionButton mFabView;
     private ProgressBar mLoadingView;
     private int mPosition;
+    private Target mTargetPicasso;
 
     /**
      * Mandatory empty constructor for the fragment manager to instantiate the
@@ -112,6 +107,30 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
         mIsCard = getResources().getBoolean(R.bool.detail_is_card);
         mStatusBarFullOpacityBottom = getResources().getDimensionPixelSize(R.dimen.detail_card_top_margin);
         setHasOptionsMenu(true);
+
+        mTargetPicasso = new Target() {
+            @Override
+            public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
+                mPhotoView.setImageBitmap(bitmap);
+                //Set palette muted color in a separate thread
+                int defaultColor = getResources().getColor(R.color.cardview_dark_background);
+                WorkerHandler.handle(new PaletteBuilder(bitmap, defaultColor, worker -> {
+                    PaletteBuilder result = (PaletteBuilder) worker;
+                    mMetaBarView.setBackgroundColor(result.getMutedColor());
+                    updateStatusBar();
+                }));
+            }
+
+            @Override
+            public void onBitmapFailed(Exception exc, Drawable errorDrawable) {
+                Timber.e(exc, "While loading image, position = %d", mPosition);
+            }
+
+            @Override
+            public void onPrepareLoad(Drawable placeHolderDrawable) {
+                //do nothing
+            }
+        };
     }
 
     public ArticleDetailActivity getActivityCast() {
@@ -146,7 +165,15 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
         mTitleView = mRootView.findViewById(R.id.article_title);
         mBylineView = mRootView.findViewById(R.id.article_byline);
         mBylineView.setMovementMethod(new LinkMovementMethod());
+
         mPhotoView = mRootView.findViewById(R.id.photo);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            setSharedElementEnterTransition(TransitionInflater.from(getActivity())
+                    .inflateTransition(R.transition.change_image_trans));
+            setEnterTransition(TransitionInflater.from(getActivity())
+                    .inflateTransition(android.R.transition.fade));
+        }
+
         mMetaBarView = mRootView.findViewById(R.id.meta_bar);
         mLoadingView = mRootView.findViewById(R.id.loading_pb);
 
@@ -195,36 +222,19 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
                 .load(event.getImageurl())
                 .placeholder(R.drawable.ic_placeholder)
                 .error(R.drawable.ic_broken_image)
-                .into(new Target() {
-                    @Override
-                    public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
-                        mPhotoView.setImageBitmap(bitmap);
-                        Palette palette = Palette.from(bitmap).generate();
-                        mMutedColor = palette.getDarkVibrantColor(getResources().getColor(R.color.cardview_dark_background));
-                        mMetaBarView.setBackgroundColor(mMutedColor);
-                        updateStatusBar();
-                    }
-
-                    @Override
-                    public void onBitmapFailed(Exception exc, Drawable errorDrawable) {
-                        Timber.e(exc, "While loading image: %s", event.getImageurl());
-                    }
-
-                    @Override
-                    public void onPrepareLoad(Drawable placeHolderDrawable) {
-                        //do nothing
-                    }
-                });
+                .into(mTargetPicasso);
         mTitleView.setText(event.getTitle());
         mBylineView.setText(event.getSubtitle());
 
-        Handler appender = new Handler();
-        appender.postDelayed(() -> {
-            Spanned spanned = Html.fromHtml(event.getBody().replaceAll("(\r\n|\n)", "<br />"));
-            mBodyView.append(spanned);
-            mLoadingView.setVisibility(View.GONE);
-        }, 1000);
-
+        //Transform body and set TextView in a separate thread
+        WorkerHandler.handle(new BodyBuilder(event.getBody(), worker -> {
+            BodyBuilder result = (BodyBuilder) worker;
+            Handler appender = new Handler();
+            appender.postDelayed(() -> {
+                mBodyView.append(result.getSpanned());
+                mLoadingView.setVisibility(View.GONE);
+            }, 300);
+        }));
 
     }
 
@@ -261,7 +271,8 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
         if (mRootView == null) {
             return;
         }
-        if (mCursor != null && TextUtils.isEmpty(mTitleView.getText())) {
+
+        if (mCursor != null && mPhotoView.getDrawable() == null) {
             //Animate
             mLoadingView.setVisibility(View.VISIBLE);
             mRootView.animate().setDuration(300).alpha(0);
@@ -282,36 +293,16 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
                     .load(photoUrl)
                     .placeholder(R.drawable.ic_placeholder)
                     .error(R.drawable.ic_broken_image)
-                    .into(mPhotoView, new Callback() {
-                        @Override
-                        public void onSuccess() {
-                            mPhotoView.buildDrawingCache();
-                            Bitmap bitmap = mPhotoView.getDrawingCache();
-                            int defaultColor = getResources().getColor(R.color.cardview_dark_background);
-
-                            //Set palette muted color
-                            WorkerHandler.handle(new PaletteBuilder(bitmap, defaultColor, worker -> {
-                                PaletteBuilder result = (PaletteBuilder) worker;
-                                mMetaBarView.setBackgroundColor(result.getMutedColor());
-                                updateStatusBar();
-                            }));
-
-                        }
-
-                        @Override
-                        public void onError(Exception exc) {
-                            Timber.e(exc, "While loading image: %s", photoUrl);
-                        }
-                    });
+                    .into(mTargetPicasso);
 
             //Transform body and set TextView in a separate thread
-            WorkerHandler.handle(new BodyBuilder(mCursor, (Worker worker) -> {
+            WorkerHandler.handle(new BodyBuilder(mCursor, worker -> {
                 BodyBuilder result = (BodyBuilder) worker;
                 Handler appender = new Handler();
                 appender.postDelayed(() -> {
                     mBodyView.append(result.getSpanned());
                     mLoadingView.setVisibility(View.GONE);
-                }, 1000);
+                }, 300);
             }));
 
         }
@@ -333,7 +324,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
 
         mCursor = cursor;
         if (mCursor != null && !mCursor.moveToFirst()) {
-            Log.e(TAG, "Error reading item detail cursor");
+            Timber.e("Error reading item detail cursor");
             mCursor.close();
             mCursor = null;
         }
@@ -356,4 +347,5 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
                 ? (int) mPhotoContainerView.getTranslationY() + mPhotoView.getHeight() - mScrollY
                 : mPhotoView.getHeight() - mScrollY;
     }
+
 }

@@ -3,6 +3,7 @@ package com.example.xyzreader.handler;
 import android.database.Cursor;
 import android.text.Html;
 import android.text.Spanned;
+import android.text.TextUtils;
 
 import com.example.xyzreader.data.ArticleLoader;
 
@@ -10,8 +11,9 @@ import com.example.xyzreader.data.ArticleLoader;
  * Created by Antonio Vitiello on 23/06/2018.
  */
 public class BodyBuilder implements Worker {
-    private final Cursor cursor;
+    private Cursor cursor;
     private final WorkerHandler.OnReady onReady;
+    private String bodyTxt;
     private Spanned spanned;
 
     public BodyBuilder(Cursor cursor, WorkerHandler.OnReady onReady) {
@@ -19,10 +21,17 @@ public class BodyBuilder implements Worker {
         this.onReady = onReady;
     }
 
+    public BodyBuilder(String bodyTxt, WorkerHandler.OnReady onReady) {
+        this.bodyTxt = bodyTxt;
+        this.onReady = onReady;
+    }
+
     @Override
     public void inBackground() {
-        String body = cursor.getString(ArticleLoader.Query.BODY);
-        spanned = Html.fromHtml(body.replaceAll("(\r\n|\n)", "<br />"));
+        if(TextUtils.isEmpty(bodyTxt)){
+            bodyTxt = cursor.getString(ArticleLoader.Query.BODY);
+        }
+        spanned = Html.fromHtml(bodyTxt.replaceAll("(\r\n|\n)", "<br />"));
     }
 
     @Override

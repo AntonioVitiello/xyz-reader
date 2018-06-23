@@ -1,7 +1,5 @@
 package com.example.xyzreader.remote;
 
-import android.util.Log;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONTokener;
@@ -12,9 +10,9 @@ import java.net.URL;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import timber.log.Timber;
 
 public class RemoteEndpointUtil {
-    private static final String TAG = "RemoteEndpointUtil";
 
     private RemoteEndpointUtil() {
     }
@@ -23,8 +21,8 @@ public class RemoteEndpointUtil {
         String itemsJson = null;
         try {
             itemsJson = fetchPlainText(Config.BASE_URL);
-        } catch (IOException e) {
-            Log.e(TAG, "Error fetching items JSON", e);
+        } catch (IOException exc) {
+            Timber.e(exc, "Error fetching items JSON");
             return null;
         }
 
@@ -36,8 +34,8 @@ public class RemoteEndpointUtil {
                 throw new JSONException("Expected JSONArray");
             }
             return (JSONArray) val;
-        } catch (JSONException e) {
-            Log.e(TAG, "Error parsing items JSON", e);
+        } catch (JSONException exc) {
+            Timber.e(exc, "Error parsing items JSON");
         }
 
         return null;

@@ -66,6 +66,8 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_article_list);
 
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+
         mSwipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
 
         mRecyclerView = findViewById(R.id.recycler_view);
@@ -147,12 +149,14 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
             View view = getLayoutInflater().inflate(R.layout.list_item_article, parent, false);
             final ViewHolder viewHolder = new ViewHolder(view);
             view.setOnClickListener(v -> {
-                int position= viewHolder.getAdapterPosition();
+                // Start Detail Activity
+                int position = viewHolder.getAdapterPosition();
                 long itemId = getItemId(position);
                 Uri uri = ItemsContract.Items.buildItemUri(itemId);
                 Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                 startActivity(intent);
 
+                //Send an even on bus
                 DetailEvent event = DetailEvent.newBuilder()
                         .title(viewHolder.titleView.getText().toString())
                         .subtitle((Spanned) viewHolder.subtitleView.getText())
