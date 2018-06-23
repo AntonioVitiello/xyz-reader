@@ -35,7 +35,8 @@ App conforms to common standards found in the Android Nanodegree General Project
 
 App utilizes stable release versions of all libraries, Gradle, and Android Studio.
 
-Udacity Honor Code
+Udacity Honor Code:
+
  I affirm that I have read Udacity’s definition of plagiarism, and that this submission is my own work.
 
  I have correctly attributed all content obtained from other sources, such as websites, books, forums, blogs, GitHub repos, etc.
