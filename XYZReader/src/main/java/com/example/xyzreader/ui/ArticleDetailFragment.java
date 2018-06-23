@@ -6,7 +6,9 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
@@ -16,7 +18,7 @@ import android.support.v4.content.Loader;
 import android.support.v7.graphics.Palette;
 import android.text.Html;
 import android.text.Spanned;
-import android.text.format.DateUtils;
+import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -24,22 +26,24 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.example.xyzreader.R;
 import com.example.xyzreader.data.ArticleLoader;
 import com.example.xyzreader.event.DetailEvent;
+import com.example.xyzreader.handler.BodyBuilder;
+import com.example.xyzreader.handler.PaletteBuilder;
+import com.example.xyzreader.handler.SubtitleBuilder;
+import com.example.xyzreader.handler.Worker;
+import com.example.xyzreader.handler.WorkerHandler;
 import com.squareup.picasso.Callback;
 import com.squareup.picasso.Picasso;
+import com.squareup.picasso.Target;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
-
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.GregorianCalendar;
 
 import timber.log.Timber;
 
@@ -53,6 +57,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
 
     public static final String ARG_ITEM_ID = "item_id";
     private static final float PARALLAX_FACTOR = 1.25f;
+    private static final String ARG_POSITION = "position";
 
     private Cursor mCursor;
     private long mItemId;
@@ -69,16 +74,13 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
     private boolean mIsCard = false;
     private int mStatusBarFullOpacityBottom;
 
-    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.sss");
-    // Use default locale format
-    private SimpleDateFormat outputFormat = new SimpleDateFormat();
-    // Most time functions can only handle 1902 - 2037
-    private GregorianCalendar START_OF_EPOCH = new GregorianCalendar(2, 1, 1);
     private TextView mTitleView;
     private TextView mBylineView;
     private TextView mBodyView;
     private LinearLayout mMetaBarView;
     private FloatingActionButton mFabView;
+    private ProgressBar mLoadingView;
+    private int mPosition;
 
     /**
      * Mandatory empty constructor for the fragment manager to instantiate the
@@ -87,9 +89,10 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
     public ArticleDetailFragment() {
     }
 
-    public static ArticleDetailFragment newInstance(long itemId) {
+    public static ArticleDetailFragment newInstance(long itemId, int position) {
         Bundle arguments = new Bundle();
         arguments.putLong(ARG_ITEM_ID, itemId);
+        arguments.putInt(ARG_POSITION, position);
         ArticleDetailFragment fragment = new ArticleDetailFragment();
         fragment.setArguments(arguments);
         return fragment;
@@ -102,10 +105,12 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
         if (getArguments().containsKey(ARG_ITEM_ID)) {
             mItemId = getArguments().getLong(ARG_ITEM_ID);
         }
+        if (getArguments().containsKey(ARG_POSITION)) {
+            mPosition = getArguments().getInt(ARG_POSITION);
+        }
 
         mIsCard = getResources().getBoolean(R.bool.detail_is_card);
-        mStatusBarFullOpacityBottom = getResources().getDimensionPixelSize(
-                R.dimen.detail_card_top_margin);
+        mStatusBarFullOpacityBottom = getResources().getDimensionPixelSize(R.dimen.detail_card_top_margin);
         setHasOptionsMenu(true);
     }
 
@@ -133,7 +138,6 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
 
         mStatusBarColorDrawable = new ColorDrawable(0);
 
-//        bindViews();
         updateStatusBar();
         return mRootView;
     }
@@ -144,11 +148,12 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
         mBylineView.setMovementMethod(new LinkMovementMethod());
         mPhotoView = mRootView.findViewById(R.id.photo);
         mMetaBarView = mRootView.findViewById(R.id.meta_bar);
+        mLoadingView = mRootView.findViewById(R.id.loading_pb);
 
         mFabView = mRootView.findViewById(R.id.share_fab);
         mFabView.setOnClickListener(view -> startActivity(Intent.createChooser(ShareCompat.IntentBuilder.from(getActivity())
                 .setType("text/plain")
-                .setText("Some sample text")
+                .setText("I'm reading: " + mTitleView.getText() + "\n" + mBylineView.getText())
                 .getIntent(), getString(R.string.action_share))));
 
         mBodyView = mRootView.findViewById(R.id.article_body);
@@ -182,23 +187,45 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
 
     @Subscribe(sticky = true, threadMode = ThreadMode.MAIN)
     public void onDetailEvent(DetailEvent event) {
-        mTitleView.setText(event.getTitle());
-        mBylineView.setText(event.getSubtitle());
+        if (mPosition != event.getPosition()) {
+            return;
+        }
+        mLoadingView.setVisibility(View.VISIBLE);
         Picasso.get()
                 .load(event.getImageurl())
                 .placeholder(R.drawable.ic_placeholder)
                 .error(R.drawable.ic_broken_image)
-                .into(mPhotoView, new Callback() {
+                .into(new Target() {
                     @Override
-                    public void onSuccess() {
-                        //do nothing
+                    public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
+                        mPhotoView.setImageBitmap(bitmap);
+                        Palette palette = Palette.from(bitmap).generate();
+                        mMutedColor = palette.getDarkVibrantColor(getResources().getColor(R.color.cardview_dark_background));
+                        mMetaBarView.setBackgroundColor(mMutedColor);
+                        updateStatusBar();
                     }
 
                     @Override
-                    public void onError(Exception exc) {
+                    public void onBitmapFailed(Exception exc, Drawable errorDrawable) {
                         Timber.e(exc, "While loading image: %s", event.getImageurl());
                     }
+
+                    @Override
+                    public void onPrepareLoad(Drawable placeHolderDrawable) {
+                        //do nothing
+                    }
                 });
+        mTitleView.setText(event.getTitle());
+        mBylineView.setText(event.getSubtitle());
+
+        Handler appender = new Handler();
+        appender.postDelayed(() -> {
+            Spanned spanned = Html.fromHtml(event.getBody().replaceAll("(\r\n|\n)", "<br />"));
+            mBodyView.append(spanned);
+            mLoadingView.setVisibility(View.GONE);
+        }, 1000);
+
+
     }
 
     private void updateStatusBar() {
@@ -230,49 +257,25 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
         }
     }
 
-    private Date parsePublishedDate() {
-        try {
-            String date = mCursor.getString(ArticleLoader.Query.PUBLISHED_DATE);
-            return dateFormat.parse(date);
-        } catch (ParseException exc) {
-            Timber.e(exc, "passing today's date");
-            return new Date();
-        }
-    }
-
     private void bindViews() {
         if (mRootView == null) {
             return;
         }
-
-        if (mCursor != null) {
-            mRootView.setAlpha(0);
+        if (mCursor != null && TextUtils.isEmpty(mTitleView.getText())) {
+            //Animate
+            mLoadingView.setVisibility(View.VISIBLE);
+            mRootView.animate().setDuration(300).alpha(0);
             mRootView.setVisibility(View.VISIBLE);
-            mRootView.animate().alpha(1);
+            mRootView.animate().setDuration(300).alpha(1);
+
+            //Set title
             mTitleView.setText(mCursor.getString(ArticleLoader.Query.TITLE));
-            Date publishedDate = parsePublishedDate();
-            if (!publishedDate.before(START_OF_EPOCH.getTime())) {
-                mBylineView.setText(Html.fromHtml(
-                        DateUtils.getRelativeTimeSpanString(
-                                publishedDate.getTime(),
-                                System.currentTimeMillis(), DateUtils.HOUR_IN_MILLIS,
-                                DateUtils.FORMAT_ABBREV_ALL).toString()
-                                + " by <font color='#ffffff'>"
-                                + mCursor.getString(ArticleLoader.Query.AUTHOR)
-                                + "</font>"));
 
-            } else {
-                // If date is before 1902, just show the string
-                mBylineView.setText(Html.fromHtml(
-                        outputFormat.format(publishedDate) + " by <font color='#ffffff'>"
-                                + mCursor.getString(ArticleLoader.Query.AUTHOR)
-                                + "</font>"));
-
-            }
-            Spanned spanned = Html.fromHtml(mCursor.getString(ArticleLoader.Query.BODY).replaceAll("(\r\n|\n)", "<br />"));
-            mBodyView.setText(spanned);
-
-            Timber.e("AAA mTitleView=%s, mBylineView=%s, mBodyView=%s", mTitleView.getText(), mBylineView.getText(), mBodyView.getText());
+            //Set By line with date
+            WorkerHandler.handle(new SubtitleBuilder(mCursor, worker -> {
+                SubtitleBuilder result = (SubtitleBuilder) worker;
+                mBylineView.setText(result.getSpanned());
+            }));
 
             final String photoUrl = mCursor.getString(ArticleLoader.Query.PHOTO_URL);
             Picasso.get()
@@ -284,12 +287,15 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
                         public void onSuccess() {
                             mPhotoView.buildDrawingCache();
                             Bitmap bitmap = mPhotoView.getDrawingCache();
-                            if (bitmap != null) {
-                                Palette palette = Palette.from(bitmap).generate();
-                                mMutedColor = palette.getDarkVibrantColor(getResources().getColor(R.color.cardview_dark_background));
-                                mMetaBarView.setBackgroundColor(mMutedColor);
+                            int defaultColor = getResources().getColor(R.color.cardview_dark_background);
+
+                            //Set palette muted color
+                            WorkerHandler.handle(new PaletteBuilder(bitmap, defaultColor, worker -> {
+                                PaletteBuilder result = (PaletteBuilder) worker;
+                                mMetaBarView.setBackgroundColor(result.getMutedColor());
                                 updateStatusBar();
-                            }
+                            }));
+
                         }
 
                         @Override
@@ -297,11 +303,17 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
                             Timber.e(exc, "While loading image: %s", photoUrl);
                         }
                     });
-        } else {
-            mRootView.setVisibility(View.GONE);
-            mTitleView.setText("N/A");
-            mBylineView.setText("N/A");
-            mBodyView.setText("N/A");
+
+            //Transform body and set TextView in a separate thread
+            WorkerHandler.handle(new BodyBuilder(mCursor, (Worker worker) -> {
+                BodyBuilder result = (BodyBuilder) worker;
+                Handler appender = new Handler();
+                appender.postDelayed(() -> {
+                    mBodyView.append(result.getSpanned());
+                    mLoadingView.setVisibility(View.GONE);
+                }, 1000);
+            }));
+
         }
     }
 
@@ -332,7 +344,6 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
     @Override
     public void onLoaderReset(@NonNull Loader<Cursor> cursorLoader) {
         mCursor = null;
-//AAA        bindViews();
     }
 
     public int getUpButtonFloor() {

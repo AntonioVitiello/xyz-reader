@@ -147,7 +147,8 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
             View view = getLayoutInflater().inflate(R.layout.list_item_article, parent, false);
             final ViewHolder viewHolder = new ViewHolder(view);
             view.setOnClickListener(v -> {
-                long itemId = getItemId(viewHolder.getAdapterPosition());
+                int position= viewHolder.getAdapterPosition();
+                long itemId = getItemId(position);
                 Uri uri = ItemsContract.Items.buildItemUri(itemId);
                 Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                 startActivity(intent);
@@ -156,6 +157,8 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
                         .title(viewHolder.titleView.getText().toString())
                         .subtitle((Spanned) viewHolder.subtitleView.getText())
                         .imageurl(viewHolder.imageurl)
+                        .position(position)
+                        .body(viewHolder.body)
                         .build();
                 EventBus.getDefault().postSticky(event);
 
@@ -176,6 +179,7 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
         @Override
         public void onBindViewHolder(ViewHolder holder, int position) {
             mCursor.moveToPosition(position);
+            holder.body = mCursor.getString(ArticleLoader.Query.BODY);
             holder.titleView.setText(mCursor.getString(ArticleLoader.Query.TITLE));
             Date publishedDate = parsePublishedDate();
             if (!publishedDate.before(START_OF_EPOCH.getTime())) {
@@ -241,6 +245,7 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
         public TextView titleView;
         public TextView subtitleView;
         public String imageurl;
+        public String body;
 
         public ViewHolder(View view) {
             super(view);

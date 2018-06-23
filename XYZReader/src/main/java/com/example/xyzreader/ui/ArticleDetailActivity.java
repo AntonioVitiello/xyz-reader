@@ -59,10 +59,8 @@ public class ArticleDetailActivity extends AppCompatActivity implements LoaderMa
         mPagerAdapter = new MyPagerAdapter(getSupportFragmentManager());
         mPager = findViewById(R.id.pager);
         mPager.setAdapter(mPagerAdapter);
-        mPager.setPageMargin((int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1,
-                getResources().getDisplayMetrics()));
+        mPager.setPageMargin((int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1, getResources().getDisplayMetrics()));
         mPager.setPageMarginDrawable(new ColorDrawable(0x22000000));
-
         mPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
             @Override
             public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
@@ -73,6 +71,7 @@ public class ArticleDetailActivity extends AppCompatActivity implements LoaderMa
                 if (mCursor != null) {
                     mCursor.moveToPosition(position);
                 }
+
                 mSelectedItemId = mCursor.getLong(ArticleLoader.Query._ID);
                 updateUpButtonPosition();
             }
@@ -82,22 +81,6 @@ public class ArticleDetailActivity extends AppCompatActivity implements LoaderMa
                 if (state != ViewPager.SCROLL_STATE_IDLE) {
                     mUpButton.startAnimation(mAnimation);
                 }
-/*
-                switch(state){
-                    case ViewPager.SCROLL_STATE_IDLE :{
-                        mUpButton.animate()
-                                .alpha(1f)
-                                .setDuration(300);
-                        break;
-                    }
-                    default :{
-                        mUpButton.animate()
-                                .alpha(0f)
-                                .setDuration(300);
-                        break;
-                    }
-                }
-*/
             }
         });
 
@@ -201,7 +184,7 @@ public class ArticleDetailActivity extends AppCompatActivity implements LoaderMa
         @Override
         public Fragment getItem(int position) {
             mCursor.moveToPosition(position);
-            return ArticleDetailFragment.newInstance(mCursor.getLong(ArticleLoader.Query._ID));
+            return ArticleDetailFragment.newInstance(mCursor.getLong(ArticleLoader.Query._ID), position);
         }
 
         @Override
