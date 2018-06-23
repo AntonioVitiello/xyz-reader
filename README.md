@@ -34,3 +34,10 @@ App uses fonts that are either the Android defaults, are complementary, and aren
 App conforms to common standards found in the Android Nanodegree General Project Guidelines.
 
 App utilizes stable release versions of all libraries, Gradle, and Android Studio.
+
+Udacity Honor Code
+ I affirm that I have read Udacity’s definition of plagiarism, and that this submission is my own work.
+
+ I have correctly attributed all content obtained from other sources, such as websites, books, forums, blogs, GitHub repos, etc.
+
+ I understand that Udacity actively checks submissions for plagiarism and that failure to adhere to the Udacity Honor Code may result in the cancellation of my enrollment.
