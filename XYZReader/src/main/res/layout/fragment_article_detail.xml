@@ -115,7 +115,7 @@
                     android:src="@drawable/ic_share"
                     android:stateListAnimator="@animator/fab_state_list_anim"
                     app:elevation="@dimen/fab_elevation"
-                    android:translationZ="6dp"
+                    android:translationZ="@dimen/fab_translation_z"
                     app:layout_anchor="@id/meta_bar"
                     app:layout_anchorGravity="bottom|end" />
 
