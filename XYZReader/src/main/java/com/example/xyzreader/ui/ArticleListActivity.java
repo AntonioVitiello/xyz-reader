@@ -75,9 +75,12 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
 
         getSupportLoaderManager().initLoader(ARTICLE_LOADER_ID, null, this);
 
+        if (savedInstanceState == null) {
+            startApplicationService();
+        }
     }
 
-    private void refresh() {
+    private void startApplicationService() {
         startService(new Intent(this, UpdaterService.class));
     }
 
@@ -100,7 +103,9 @@ public class ArticleListActivity extends AppCompatActivity implements LoaderMana
         public void onReceive(Context context, Intent intent) {
             if (UpdaterService.BROADCAST_ACTION_STATE_CHANGE.equals(intent.getAction())) {
                 mIsRefreshing = intent.getBooleanExtra(UpdaterService.EXTRA_REFRESHING, false);
-                updateRefreshingUI();
+                if(!mIsRefreshing) {
+                    updateRefreshingUI();
+                }
             }
         }
     };
