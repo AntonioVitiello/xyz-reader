@@ -10,6 +10,7 @@
     <string name="up">Up</string>
     <string name="badge">Badge</string>
     <string name="title">Title</string>
+    <string name="subtitle">Subtitle</string>
     <string name="image_transition_name">image_transition</string>
 
 </resources>
