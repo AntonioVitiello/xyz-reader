@@ -73,7 +73,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
     private TextView mBodyView;
     private LinearLayout mMetaBarView;
     private FloatingActionButton mFabView;
-    private ProgressBar mLoadingView;
+    private ProgressBar mProgressBar;
     private int mPosition;
     private Target mTargetPicasso;
 
@@ -175,7 +175,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
         }
 
         mMetaBarView = mRootView.findViewById(R.id.meta_bar);
-        mLoadingView = mRootView.findViewById(R.id.loading_pb);
+        mProgressBar = mRootView.findViewById(R.id.loading_pb);
 
         mFabView = mRootView.findViewById(R.id.share_fab);
         mFabView.setOnClickListener(view -> startActivity(Intent.createChooser(ShareCompat.IntentBuilder.from(getActivity())
@@ -217,7 +217,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
         if (mPosition != event.getPosition()) {
             return;
         }
-        mLoadingView.setVisibility(View.VISIBLE);
+        mProgressBar.setVisibility(View.VISIBLE);
         Picasso.get()
                 .load(event.getImageurl())
                 .placeholder(R.drawable.ic_placeholder)
@@ -232,7 +232,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
             Handler appender = new Handler();
             appender.postDelayed(() -> {
                 mBodyView.append(result.getSpanned());
-                mLoadingView.setVisibility(View.GONE);
+                mProgressBar.setVisibility(View.GONE);
             }, 300);
         }));
 
@@ -274,7 +274,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
 
         if (mCursor != null && mPhotoView.getDrawable() == null) {
             //Animate
-            mLoadingView.setVisibility(View.VISIBLE);
+            mProgressBar.setVisibility(View.VISIBLE);
             mRootView.animate().setDuration(300).alpha(0);
             mRootView.setVisibility(View.VISIBLE);
             mRootView.animate().setDuration(300).alpha(1);
@@ -301,7 +301,7 @@ public class ArticleDetailFragment extends Fragment implements LoaderManager.Loa
                 Handler appender = new Handler();
                 appender.postDelayed(() -> {
                     mBodyView.append(result.getSpanned());
-                    mLoadingView.setVisibility(View.GONE);
+                    mProgressBar.setVisibility(View.GONE);
                 }, 300);
             }));
 
